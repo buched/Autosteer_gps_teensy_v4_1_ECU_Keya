@@ -35,22 +35,11 @@ void keyaSend(uint8_t data[]) {
 void CAN_Setup() {
 	Keya_Bus.begin();
 	Keya_Bus.setBaudRate(250000);
-	// Dedicated bus, zero chat from others. No need for filters
-//	CAN_message_t msgV;
-//	msgV.id = KeyaPGN;
-//	msgV.flags.extended = true;
-//	msgV.len = 8;
-//	// claim an address. Don't think I need to do this tho
-//	// anyway, just pinched this from Claas address. TODO, looks like we can do without, ditch this
-//	msgV.buf[0] = 0x00;
-//	msgV.buf[1] = 0x00;
-//	msgV.buf[2] = 0xC0;
-//	msgV.buf[3] = 0x0C;
-//	msgV.buf[4] = 0x00;
-//	msgV.buf[5] = 0x17;
-//	msgV.buf[6] = 0x02;
-//	msgV.buf[7] = 0x20;
-//	Keya_Bus.write(msgV);
+  K_Bus.begin();
+  K_Bus.setBaudRate(250000);
+  K_Bus.enableFIFO();
+  K_Bus.setFIFOFilter(REJECT_ALL);
+  K_Bus.setFIFOFilter(0, 0x18EF1C00, EXT);
 	delay(1000);
 	if (debugKeya) Serial.println("Initialised Keya CANBUS");
 }
@@ -73,7 +62,6 @@ void disableKeyaSteer() {
 	KeyaBusSendData.buf[6] = 0;
 	KeyaBusSendData.buf[7] = 0;
 	Keya_Bus.write(KeyaBusSendData);
-	//if (debugKeya) Serial.println("Disabled Keya motor");
 }
 
 void disableKeyaSteerTEST() {
@@ -90,7 +78,6 @@ void disableKeyaSteerTEST() {
   KeyaBusSendData.buf[6] = 0;
   KeyaBusSendData.buf[7] = 0;
   Keya_Bus.write(KeyaBusSendData);
-  //if (debugKeya) Serial.println("Disabled Keya motor");
 }
 
 void enableKeyaSteer() {
@@ -114,7 +101,6 @@ void SteerKeya(int steerSpeed) {
 	int actualSpeed = map(steerSpeed, -255, 255, -995, 998);
 	if (pwmDrive == 0) {
 		disableKeyaSteer();
-		//if (debugKeya) Serial.println("pwmDrive zero - disabling");
 		return; // don't need to go any further, if we're disabling, we're disabling
 	}
 	if (debugKeya) Serial.println("told to steer, with " + String(steerSpeed) + " so....");
@@ -150,41 +136,36 @@ void SteerKeya(int steerSpeed) {
 void KeyaBus_Receive() {
 	CAN_message_t KeyaBusReceiveData;
 	if (Keya_Bus.read(KeyaBusReceiveData)) {
-		// parse the different message types
-		// heartbeat 0x07000001
-   // change heartbeat time in the software, default is 20ms
-		if (KeyaBusReceiveData.id == 0x07000001) {
-			// 0-1 - Cumulative value of angle (360 def / circle)
-			// 2-3 - Motor speed, signed int eg -500 or 500
-			// 4-5 - Motor current, with "symbol" ? Signed I think that means, but it does appear to be a crap int. 1, 2 for 1, 2 amps etc
-			//		is that accurate enough for us?
-			// 6-7 - Control_Close (error code)
-			// TODO Yeah, if we ever see something here, fire off a disable, refuse to engage autosteer or..?
-			//KeyaCurrentSensorReading = abs((int16_t)((KeyaBusReceiveData.buf[5] << 8) | KeyaBusReceiveData.buf[4]));
-			//if (KeyaCurrentSensorReading > 255) KeyaCurrentSensorReading -= 255;
-			if (KeyaBusReceiveData.buf[4] == 0xFF) {
-				KeyaCurrentSensorReading = (0.9 * KeyaCurrentSensorReading  ) + ( 0.1 *  (256 - KeyaBusReceiveData.buf[5]) * 20);
-			}
-			else {
-				KeyaCurrentSensorReading = (0.9 * KeyaCurrentSensorReading  ) + ( 0.1 * KeyaBusReceiveData.buf[5] * 20);
-			}
+		if (KeyaBusReceiveData.id == 0x07000001)
+		  {
+			if (KeyaBusReceiveData.buf[4] == 0xFF)
+  			{
+  				KeyaCurrentSensorReading = (0.9 * KeyaCurrentSensorReading  ) + ( 0.1 *  (256 - KeyaBusReceiveData.buf[5]) * 20);
+  			}
+			else 
+  			{
+  				KeyaCurrentSensorReading = (0.9 * KeyaCurrentSensorReading  ) + ( 0.1 * KeyaBusReceiveData.buf[5] * 20);
+  			}
 			//if (debugKeya) Serial.println("Heartbeat current is " + String(KeyaCurrentSensorReading));
 		}
-
-		// response from most commands 0x05800001
-		// could have been separate PGNs, but oh no...
-
-		//if (KeyaBusReceiveData.id == 0x05800001) {
-		//	// response to current request (this is also in heartbeat)
-		//	if (isPatternMatch(KeyaBusReceiveData, keyaCurrentResponse, sizeof(keyaCurrentResponse))) {
-		//		// Current is unsigned float in [4]
-		//		// set the motor current variable, when you find out what that is
-		//		KeyaCurrentSensorReading = KeyaBusReceiveData.buf[4];
-		//		if (debugKeya) Serial.println("Returned current is " + KeyaCurrentSensorReading);
-		//	}
-		//	else if (1 == 0) {
-		//		// placeholder for more checks
-		//	}
-		//}
 	}
+   CAN_message_t KBusReceiveData;
+  if (K_Bus.read(KBusReceiveData)) {
+  if (KBusReceiveData.id == 0x18EF1C00)   // **NH Engage Message**
+    {
+      if ((KBusReceiveData.buf[0]) == 0x0F && (KBusReceiveData.buf[1]) == 0x60 && (KBusReceiveData.buf[2]) == 0x01)
+      {
+        if (lastIdActive == 0)
+          {
+            engageCAN = true;
+            lastIdActive = 1;
+          }
+       else
+          {
+            engageCAN = false;
+            lastIdActive = 0;
+          }
+    } 
+    }
+  }
 }

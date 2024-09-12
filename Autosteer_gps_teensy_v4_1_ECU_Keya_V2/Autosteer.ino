@@ -238,13 +238,12 @@ void autosteerSetup()
 	}
   
   //K_Bus is CAN-1 and is the Main Tractor Bus
-  K_Bus.begin();
-  K_Bus.setBaudRate(250000);
-  K_Bus.enableFIFO();
-  K_Bus.setFIFOFilter(REJECT_ALL);
-  K_Bus.setFIFOFilter(0, 0x18EF1C00, EXT);
-  K_Bus.setFIFOFilter(1, 0x18FE4523, EXT);
-  K_Bus.setFIFOFilter(2, 0x18FFB406, EXT);
+
+//  K_Bus.enableFIFO();
+//  K_Bus.setFIFOFilter(REJECT_ALL);
+//  K_Bus.setFIFOFilter(0, 0x18EF1C00, EXT);
+//  K_Bus.setFIFOFilter(1, 0x18FE4523, EXT);
+//  K_Bus.setFIFOFilter(2, 0x18FFB406, EXT);
 	adc.setSampleRate(ADS1115_REG_CONFIG_DR_128SPS); //128 samples per second
 	adc.setGain(ADS1115_REG_CONFIG_PGA_6_144V);
 
@@ -350,6 +349,7 @@ void autosteerLoop()
         steerSwitch = 1; // reset values like it turned off
         currentState = 1;
         previous = 0;
+        engageCAN = false;
       }
 		}
 
@@ -753,37 +753,5 @@ void EncoderFunc()
 //---Receive K_Bus message
 void K_Receive()
 {
-  CAN_message_t KBusReceiveData;
-  if (K_Bus.read(KBusReceiveData)) { 
-  if (KBusReceiveData.id == 0x18FFB406)   // **CNH Relevage Message**
-    {
-      if ((KBusReceiveData.buf[1])== 0x04)
-      {
-          workCAN = false;
-      }
-      else if ((KBusReceiveData.buf[1])== 0x10)
-      {
-          workCAN = true;
-      }
-    } 
-    else if (KBusReceiveData.id == 0x18EF1C00)   // **NH Engage Message**
-    {
-      if ((KBusReceiveData.buf[0])== 0x0F && (KBusReceiveData.buf[1])== 0x60 && (KBusReceiveData.buf[2])== 0x01)
-      {
-        engageCAN = true;
-        lastIdActive = KBusReceiveData.id;
-      } 
-      else// if ((KBusReceiveData.buf[2])== 0xD0)
-      {
-        engageCAN = false;
-        lastIdActive = 0;
-      }
-    }
-    
-    else if (KBusReceiveData.id == 0x18FE4523) //CNH Relevage
-    {
-      if (KBusReceiveData.buf[0] < 128) workCAN = 1; 
-      else workCAN = 0; 
-    }
-  }
+
 }
