@@ -39,6 +39,7 @@ void CAN_Setup() {
   K_Bus.setBaudRate(250000);
   K_Bus.enableFIFO();
   K_Bus.setFIFOFilter(REJECT_ALL);
+// edit Can id to match with your. edit too part where engage condition are check
   K_Bus.setFIFOFilter(0, 0x18EF1C00, EXT);
 	delay(1000);
 	if (debugKeya) Serial.println("Initialised Keya CANBUS");
@@ -151,7 +152,7 @@ void KeyaBus_Receive() {
 	}
    CAN_message_t KBusReceiveData;
   if (K_Bus.read(KBusReceiveData)) {
-  if (KBusReceiveData.id == 0x18EF1C00)   // **NH Engage Message**
+  if (KBusReceiveData.id == 0x18EF1C00)   // **edit ID and conditions
     {
       if ((KBusReceiveData.buf[0]) == 0x0F && (KBusReceiveData.buf[1]) == 0x60 && (KBusReceiveData.buf[2]) == 0x01)
       {
