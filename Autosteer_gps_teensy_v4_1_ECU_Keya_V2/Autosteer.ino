@@ -21,17 +21,19 @@
 /////////////////////////////////////////////
 
 // if not in eeprom, overwrite
-#define EEP_Ident 2402
+#define EEP_Ident 2400
 
 //   ***********  Motor drive connections  **************888
 //Connect ground only for cytron, Connect Ground and +5v for IBT2
 
+//Dir1 for Cytron Dir, Both L and R enable for IBT2
+#define DIR1_RL_ENABLE  4
+
 //PWM1 for Cytron PWM, Left PWM for IBT2
 #define PWM1_LPWM  2
 
-//Active l'alimentation de Keya
+//Not Connected for Cytron, Right PWM for IBT2
 #define PWM2_RPWM  33
-#define PWM2_OPT  37
 
 //--------------------------- Switch Input Pins ------------------------
 #define STEERSW_PIN 6
@@ -63,6 +65,7 @@ ADS1115_lite adc(ADS1115_DEFAULT_ADDRESS);     // Use this for the 16-bit versio
 uint8_t autoSteerUdpData[UDP_TX_PACKET_MAX_SIZE];  // Buffer For Receiving UDP Data
 #endif
 
+bool isKeya = true;
 //loop time variables in microseconds
 const uint16_t LOOP_TIME = 25;  //40Hz
 uint32_t autsteerLastTime = LOOP_TIME;
@@ -71,7 +74,6 @@ uint32_t currentTime = LOOP_TIME;
 const uint16_t WATCHDOG_THRESHOLD = 100;
 const uint16_t WATCHDOG_FORCE_VALUE = WATCHDOG_THRESHOLD + 2; // Should be greater than WATCHDOG_THRESHOLD
 uint8_t watchdogTimer = WATCHDOG_FORCE_VALUE;
-uint8_t watchdogKeya = 0;
 
 //Heart beat hello AgIO
 uint8_t helloFromIMU[] = { 128, 129, 121, 121, 5, 0, 0, 0, 0, 0, 71 };
@@ -106,11 +108,6 @@ uint8_t remoteSwitch = 0, workSwitch = 0, steerSwitch = 1, switchByte = 0;
 uint8_t guidanceStatus = 0;
 uint8_t prevGuidanceStatus = 0;
 bool guidanceStatusChanged = false;
-
-//CAN Bus
-bool engageCAN = false;          //Variable for Engage from CAN
-bool workCAN = false;
-long unsigned int lastIdActive = 0;
 
 //speed sent as *10
 float gpsSpeed = 0;
@@ -164,8 +161,12 @@ struct Setup {
 
 void steerConfigInit()
 {
-    pinMode(PWM2_RPWM, OUTPUT);
-    digitalWrite(PWM2_RPWM, LOW);
+	if (!isKeya) {
+		if (steerConfig.CytronDriver)
+		{
+			pinMode(PWM2_RPWM, OUTPUT);
+		}
+	}
 }
 
 void steerSettingsInit()
@@ -176,10 +177,33 @@ void steerSettingsInit()
 
 void autosteerSetup()
 {
+	//PWM rate settings. Set them both the same!!!!
+	/*  PWM Frequency ->
+		 490hz (default) = 0
+		 122hz = 1
+		 3921hz = 2
+	*/
+	if (PWM_Frequency == 0)
+	{
+		analogWriteFrequency(PWM1_LPWM, 490);
+		analogWriteFrequency(PWM2_RPWM, 490);
+	}
+	else if (PWM_Frequency == 1)
+	{
+		analogWriteFrequency(PWM1_LPWM, 122);
+		analogWriteFrequency(PWM2_RPWM, 122);
+	}
+	else if (PWM_Frequency == 2)
+	{
+		analogWriteFrequency(PWM1_LPWM, 3921);
+		analogWriteFrequency(PWM2_RPWM, 3921);
+	}
+
 	//keep pulled high and drag low to activate, noise free safe
 	pinMode(WORKSW_PIN, INPUT_PULLUP);
 	pinMode(STEERSW_PIN, INPUT_PULLUP);
 	pinMode(REMOTE_PIN, INPUT_PULLUP);
+	pinMode(DIR1_RL_ENABLE, OUTPUT);
 
 	// Disable digital inputs for analog input pins
 	pinMode(CURRENT_SENSOR_PIN, INPUT_DISABLE);
@@ -236,14 +260,7 @@ void autosteerSetup()
 		Serial.println("Autosteer disabled, GPS only mode");
 		return;
 	}
-  
-  //K_Bus is CAN-1 and is the Main Tractor Bus
 
-//  K_Bus.enableFIFO();
-//  K_Bus.setFIFOFilter(REJECT_ALL);
-//  K_Bus.setFIFOFilter(0, 0x18EF1C00, EXT);
-//  K_Bus.setFIFOFilter(1, 0x18FE4523, EXT);
-//  K_Bus.setFIFOFilter(2, 0x18FFB406, EXT);
 	adc.setSampleRate(ADS1115_REG_CONFIG_DR_128SPS); //128 samples per second
 	adc.setGain(ADS1115_REG_CONFIG_PGA_6_144V);
 
@@ -269,14 +286,8 @@ void autosteerLoop()
 		//If connection lost to AgOpenGPS, the watchdog will count up and turn off steering
 		if (watchdogTimer++ > 250) watchdogTimer = WATCHDOG_FORCE_VALUE;
 
-    if (watchdogKeya++ > 200) {
-      watchdogKeya = 0;
-      digitalWrite(PWM2_RPWM, LOW);
-    }
-
 		//read all the switches
-		//workSwitch = digitalRead(WORKSW_PIN);  // read work switch
-    workSwitch = workCAN;
+		workSwitch = digitalRead(WORKSW_PIN);  // read work switch
 
 		if (steerConfig.SteerSwitch == 1)         //steer switch on - off
 		{
@@ -285,7 +296,6 @@ void autosteerLoop()
 		else if (steerConfig.SteerButton == 1)    //steer Button momentary
 		{
 			reading = digitalRead(STEERSW_PIN);
-      if (engageCAN) reading = LOW;              //CAN Engage is ON (Button is Pressed)
 			if (reading == LOW && previous == HIGH)
 			{
 				if (currentState == 1)
@@ -344,13 +354,28 @@ void autosteerLoop()
 		// Current sensor?
 		if (steerConfig.CurrentSensor)
 		{
-      sensorReading = KeyaCurrentSensorReading;
-      if (KeyaCurrentSensorReading >= steerConfig.PulseCountMax) {
-        steerSwitch = 1; // reset values like it turned off
-        currentState = 1;
-        previous = 0;
-        engageCAN = false;
-      }
+			if (isKeya) {
+				sensorReading = KeyaCurrentSensorReading;
+				if (KeyaCurrentSensorReading >= steerConfig.PulseCountMax) {
+					steerSwitch = 1; // reset values like it turned off
+					currentState = 1;
+					previous = 0;
+				}
+			}
+			else {
+				sensorSample = (float)analogRead(CURRENT_SENSOR_PIN);
+				sensorSample = (abs(775 - sensorSample)) * 0.5;
+				sensorReading = sensorReading * 0.7 + sensorSample * 0.3;
+				sensorReading = min(sensorReading, 255);
+
+				if (sensorReading >= steerConfig.PulseCountMax)
+				{
+					steerSwitch = 1; // reset values like it turned off
+					currentState = 1;
+					previous = 0;
+				}
+
+			}
 		}
 
 		remoteSwitch = digitalRead(REMOTE_PIN); //read auto steer enable switch open = 0n closed = Off
@@ -358,6 +383,14 @@ void autosteerLoop()
 		switchByte |= (remoteSwitch << 2); //put remote in bit 2
 		switchByte |= (steerSwitch << 1);   //put steerswitch status in bit 1 position
 		switchByte |= workSwitch;
+
+		/*
+		  #if Relay_Type == 1
+			SetRelays();       //turn on off section relays
+		  #elif Relay_Type == 2
+			SetuTurnRelays();  //turn on off uTurn relays
+		  #endif
+		*/
 
 		//get steering position
 		if (steerConfig.SingleInputWAS)   //Single Input ADS
@@ -399,6 +432,21 @@ void autosteerLoop()
 
 		if (watchdogTimer < WATCHDOG_THRESHOLD)
 		{
+			//Enable H Bridge for IBT2, hyd aux, etc for cytron. Don't care about this for Keya
+			if (true || !isKeya) {
+				if (steerConfig.CytronDriver)
+				{
+					if (steerConfig.IsRelayActiveHigh)
+					{
+						digitalWrite(PWM2_RPWM, 0);
+					}
+					else
+					{
+						digitalWrite(PWM2_RPWM, 1);
+					}
+				}
+				else digitalWrite(DIR1_RL_ENABLE, 1);
+			}
 			steerAngleError = steerAngleActual - steerAngleSetPoint;   //calculate the steering error
 			//if (abs(steerAngleError)< steerSettings.lowPWM) steerAngleError = 0;
 
@@ -411,8 +459,26 @@ void autosteerLoop()
 		}
 		else
 		{
+			//we've lost the comm to AgOpenGPS, or just stop request
+			//Disable H Bridge for IBT2, hyd aux, etc for cytron
+			// Don't care about this for Keya
+			if (true || !isKeya) {
+				if (steerConfig.CytronDriver)
+				{
+					if (steerConfig.IsRelayActiveHigh)
+					{
+						digitalWrite(PWM2_RPWM, 1);
+					}
+					else
+					{
+						digitalWrite(PWM2_RPWM, 0);
+					}
+				}
+				else digitalWrite(DIR1_RL_ENABLE, 0); //IBT2
+			}
+
 			pwmDrive = 0; //turn off steering motor
-			disableKeyaSteer(); // If we lost the connection to AOG, definitely disable steering
+			if (isKeya) disableKeyaSteer(); // If we lost the connection to AOG, definitely disable steering
 			motorDrive(); //out to motors the pwm value
 			pulseCount = 0;
 			// Autosteer Led goes back to RED when autosteering is stopped
@@ -423,11 +489,6 @@ void autosteerLoop()
 
 	//This runs continuously, outside of the timed loop, keeps checking for new udpData, turn sense
 	//delay(1);
-
-  //--CAN--Start--
-  //VBus_Receive();
-  //ISO_Receive();
-  K_Receive();
 
 	// Speed pulse
 	if (gpsSpeedUpdateTimer < 1000)
@@ -671,7 +732,7 @@ void ReceiveUdp()
 
 					SendUdp(helloFromAutoSteer, sizeof(helloFromAutoSteer), Eth_ipDestination, portDestination);
 				}
-				if (useBNO08x)
+				if (useBNO08x || useCMPS)
 				{
 					SendUdp(helloFromIMU, sizeof(helloFromIMU), Eth_ipDestination, portDestination);
 				}
@@ -720,12 +781,6 @@ void ReceiveUdp()
 					SendUdp(scanReply, sizeof(scanReply), ipDest, portDest);
 				}
 			}
-
-      else if (autoSteerUdpData[3] == 0xEF && Autosteer_running)  //239
-      {
-        digitalWrite(PWM2_RPWM, HIGH);
-        watchdogKeya = 0;
-      }
 		} //end if 80 81 7F
 	}
 }
@@ -748,10 +803,4 @@ void EncoderFunc()
 		pulseCount++;
 		encEnable = false;
 	}
-}
-
-//---Receive K_Bus message
-void K_Receive()
-{
-
 }
