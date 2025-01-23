@@ -26,12 +26,12 @@
 //   ***********  Motor drive connections  **************888
 //Connect ground only for cytron, Connect Ground and +5v for IBT2
 
-//PWM1 for Cytron PWM, Left PWM for IBT2
-#define PWM1_LPWM  2
-
-//Active l'alimentation de Keya
-#define PWM2_RPWM  33
-#define PWM2_OPT  37
+////PWM1 for Cytron PWM, Left PWM for IBT2
+//#define PWM1_LPWM  2
+//
+////Active l'alimentation de Keya
+//#define PWM2_RPWM  33
+//#define PWM2_OPT  37
 
 //--------------------------- Switch Input Pins ------------------------
 #define STEERSW_PIN 6
@@ -111,6 +111,7 @@ bool guidanceStatusChanged = false;
 bool engageCAN = false;          //Variable for Engage from CAN
 bool workCAN = false;
 long unsigned int lastIdActive = 0;
+uint8_t KBUSRearHitch = 250;    //Variable for hitch height from KBUS (0-250 *0.4 = 0-100%) - CaseIH tractor bus
 
 //speed sent as *10
 float gpsSpeed = 0;
@@ -162,10 +163,25 @@ struct Setup {
 
 }; Setup steerConfig;               // 9 bytes (AW: 14, surely?)
 
+//Variables for config - 0 is false  
+struct Configm {
+    uint8_t raiseTime = 2;
+    uint8_t lowerTime = 4;
+    uint8_t enableToolLift = 0;
+    uint8_t isRelayActiveHigh = 0; //if zero, active low (default)
+
+    uint8_t user1 = 0; //user defined values set in machine tab
+    uint8_t user2 = 0;
+    uint8_t user3 = 0;
+    uint8_t user4 = 0;
+
+};  Configm aogConfig;   //4 bytes
+
+
 void steerConfigInit()
 {
-    pinMode(PWM2_RPWM, OUTPUT);
-    digitalWrite(PWM2_RPWM, LOW);
+//    pinMode(PWM2_RPWM, OUTPUT);
+//    digitalWrite(PWM2_RPWM, LOW);
 }
 
 void steerSettingsInit()
@@ -211,12 +227,14 @@ void autosteerSetup()
 		EEPROM.put(10, steerSettings);
 		EEPROM.put(40, steerConfig);
 		EEPROM.put(60, networkAddress);
+    EEPROM.get(70, aogConfig);
 	}
 	else
 	{
 		EEPROM.get(10, steerSettings);     // read the Settings
 		EEPROM.get(40, steerConfig);
 		EEPROM.get(60, networkAddress);
+    EEPROM.get(70, aogConfig);
 	}
 
 	steerSettingsInit();
@@ -225,9 +243,6 @@ void autosteerSetup()
 	if (Autosteer_running)
 	{
 		Serial.println("Autosteer running, waiting for AgOpenGPS");
-		// Autosteer Led goes Red if ADS1115 is found
-		//digitalWrite(AUTOSTEER_ACTIVE_LED, 0);
-		//digitalWrite(AUTOSTEER_STANDBY_LED, 1);
 	}
 	else
 	{
@@ -236,14 +251,6 @@ void autosteerSetup()
 		Serial.println("Autosteer disabled, GPS only mode");
 		return;
 	}
-  
-  //K_Bus is CAN-1 and is the Main Tractor Bus
-
-//  K_Bus.enableFIFO();
-//  K_Bus.setFIFOFilter(REJECT_ALL);
-//  K_Bus.setFIFOFilter(0, 0x18EF1C00, EXT);
-//  K_Bus.setFIFOFilter(1, 0x18FE4523, EXT);
-//  K_Bus.setFIFOFilter(2, 0x18FFB406, EXT);
 	adc.setSampleRate(ADS1115_REG_CONFIG_DR_128SPS); //128 samples per second
 	adc.setGain(ADS1115_REG_CONFIG_PGA_6_144V);
 
@@ -271,12 +278,12 @@ void autosteerLoop()
 
     if (watchdogKeya++ > 200) {
       watchdogKeya = 0;
-      digitalWrite(PWM2_RPWM, LOW);
+      //digitalWrite(PWM2_RPWM, LOW);
     }
 
 		//read all the switches
-		//workSwitch = digitalRead(WORKSW_PIN);  // read work switch
-    workSwitch = workCAN;
+		workSwitch = digitalRead(WORKSW_PIN);  // read work switch
+    if (workCAN == 1) workSwitch = 0;         // If CAN workswitch is on, set workSwitch ON
 
 		if (steerConfig.SteerSwitch == 1)         //steer switch on - off
 		{
@@ -619,7 +626,7 @@ void ReceiveUdp()
 				EEPROM.put(10, steerSettings);
 
 				// Re-Init steer settings
-				steerSettingsInit();
+				//steerSettingsInit();
 			}
 
 			else if (autoSteerUdpData[3] == 0xFB)  //251 FB - SteerConfig
@@ -652,8 +659,6 @@ void ReceiveUdp()
 
 				EEPROM.put(40, steerConfig);
 
-				// Re-Init
-				steerConfigInit();
 
 			}//end FB
 			else if (autoSteerUdpData[3] == 200) // Hello from AgIO
@@ -720,10 +725,30 @@ void ReceiveUdp()
 					SendUdp(scanReply, sizeof(scanReply), ipDest, portDest);
 				}
 			}
+      else if (autoSteerUdpData[3] == 238)
+            {
+                aogConfig.raiseTime = autoSteerUdpData[5];
+                aogConfig.lowerTime = autoSteerUdpData[6];
+                aogConfig.enableToolLift = autoSteerUdpData[7];
 
+                //set1 
+                uint8_t sett = autoSteerUdpData[8];  //setting0     
+                if (bitRead(sett, 0)) aogConfig.isRelayActiveHigh = 1; else aogConfig.isRelayActiveHigh = 0;
+
+                aogConfig.user1 = autoSteerUdpData[9];
+                aogConfig.user2 = autoSteerUdpData[10];
+                aogConfig.user3 = autoSteerUdpData[11];
+                aogConfig.user4 = autoSteerUdpData[12];
+
+                //crc
+
+                //save in EEPROM and restart
+                EEPROM.put(70, aogConfig);
+                //resetFunc();
+            }
       else if (autoSteerUdpData[3] == 0xEF && Autosteer_running)  //239
       {
-        digitalWrite(PWM2_RPWM, HIGH);
+        //digitalWrite(PWM2_RPWM, HIGH);
         watchdogKeya = 0;
       }
 		} //end if 80 81 7F
