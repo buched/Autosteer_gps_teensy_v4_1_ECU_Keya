@@ -148,12 +148,18 @@ void readBNO()
             if(steerConfig.IsUseY_Axis)
             {
               roll = asin(t2) * RAD_TO_DEG_X_10;
+              //myRA.addValue(roll);
+              //running average
+              //avg = myRA.getAverage();
               pitch = atan2(t0, t1) * RAD_TO_DEG_X_10;
             }
             else
             {
               pitch = asin(t2) * RAD_TO_DEG_X_10;
               roll = atan2(t0, t1) * RAD_TO_DEG_X_10;
+              //running average
+              //myRA.addValue(roll);
+              //avg = myRA.getAverage();
             }
 
             if(invertRoll)
@@ -178,6 +184,8 @@ void imuHandler()
             itoa(temp, imuPitch, 10);
 
             // the roll x10
+            //running average
+            //temp = (int16_t)avg;
             temp = (int16_t)roll;
             itoa(temp, imuRoll, 10);
 

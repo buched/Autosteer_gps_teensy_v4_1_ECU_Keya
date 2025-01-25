@@ -1,11 +1,7 @@
 #define VERSION 1.01
 //Modified by Desmartins Daniel 31/08/2024
 // Single antenna, IMU code for AgOpenGPS
-//
-// connection plan:
-// Teensy Serial 7 RX (28) to F9P Position receiver TX1 (Position data)
-// Teensy Serial 7 TX (29) to F9P Position receiver RX1 (RTCM data for RTK)
-//
+
 // Configuration of receiver
 // Position F9P
 // CFG-RATE-MEAS - 100 ms -> 10 Hz
@@ -16,6 +12,14 @@
 // lansalot's attempt at Keya integration
 // (he apologizes in advance)
 
+//  0 = Claas (1E/30 Navagation Controller, 13/19 Steering Controller) - See Claas Notes on Service Tool Page
+//  1 = Valtra, Massey Fergerson (Standard Danfoss ISO 1C/28 Navagation Controller, 13/19 Steering Controller)
+//  2 = CaseIH, New Holland (AA/170 Navagation Controller, 08/08 Steering Controller)
+//  3 = Fendt (2C/44 Navagation Controller, F0/240 Steering Controller)
+//  4 = JCB (AB/171 Navagation Controller, 13/19 Steering Controller)
+//  5 = FendtOne - Same as Fendt but 500kbs K-Bus.
+uint8_t Brand = 2;  
+
 /************************* User Settings *************************/
 // Serial Ports
 #define SerialAOG Serial                //AgIO USB conection
@@ -24,7 +28,7 @@ HardwareSerial* SerialGPS = &Serial3;   //Main postion receiver (GGA)
 
 const int32_t baudAOG = 115200; 
 const int32_t baudGPS = 460800;
-const int32_t baudRTK = 9600;     // most are using Xbee radios with default of 115200
+//const int32_t baudRTK = 9600;     // most are using Xbee radios with default of 115200
 
 int8_t KeyaCurrentSensorReading = 0;
 
@@ -81,11 +85,16 @@ byte velocityPWM_Pin = 36;      // Velocity (MPH speed) PWM pin
 #include <Wire.h>
 #include "BNO08x_AOG.h"
 
+//running average
+//roll moyenne flottante
+//#include "RunningAverage.h"
+//RunningAverage myRA(7);
+//int samples = 0;
+//float avg = 0;
+
 #include <FlexCAN_T4.h>
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_256> K_Bus;    //Tractor / Control Bus
 FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_256> Keya_Bus;
-
-uint8_t Brand = 3;  
 
 //Used to set CPU speed
 extern "C" uint32_t set_arm_clock(uint32_t frequency); // required prototype
@@ -226,11 +235,11 @@ void loop()
 //    }
 
     //GGA timeout, turn off GPS LED's etc
-    if((systick_millis_count - gpsReadyTime) > 10000) //GGA age over 10sec
-    {
-      //digitalWrite(GPSRED_LED, LOW);
-      //digitalWrite(GPSGREEN_LED, LOW);
-    }
+//    if((systick_millis_count - gpsReadyTime) > 10000) //GGA age over 10sec
+//    {
+//      digitalWrite(GPSRED_LED, LOW);
+//      digitalWrite(GPSGREEN_LED, LOW);
+//    }
 
     //Read BNO
     if((systick_millis_count - READ_BNO_TIME) > REPORT_INTERVAL && useBNO08x)
@@ -242,15 +251,15 @@ void loop()
     if (Autosteer_running) autosteerLoop();
     else ReceiveUdp();
     
-  if (Ethernet.linkStatus() == LinkOFF) 
-  {
+  //if (Ethernet.linkStatus() == LinkOFF) 
+  //{
     //digitalWrite(Power_on_LED, 1);
     //digitalWrite(Ethernet_Active_LED, 0);
-  }
-  if (Ethernet.linkStatus() == LinkON) 
-  {
+  //}
+  //if (Ethernet.linkStatus() == LinkON) 
+  //{
     //digitalWrite(Power_on_LED, 0);
     //digitalWrite(Ethernet_Active_LED, 1);
-  }
+  //}
 }//End Loop
 //**************************************************************************

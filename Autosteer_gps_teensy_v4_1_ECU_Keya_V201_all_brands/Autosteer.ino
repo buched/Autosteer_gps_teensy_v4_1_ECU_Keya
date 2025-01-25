@@ -39,7 +39,7 @@
 #define REMOTE_PIN 8
 
 //Define sensor pin for current or pressure sensor
-#define CURRENT_SENSOR_PIN A17
+//#define CURRENT_SENSOR_PIN A17
 #define PRESSURE_SENSOR_PIN A14
 
 #define CONST_180_DIVIDED_BY_PI 57.2957795130823
@@ -198,7 +198,7 @@ void autosteerSetup()
 	pinMode(REMOTE_PIN, INPUT_PULLUP);
 
 	// Disable digital inputs for analog input pins
-	pinMode(CURRENT_SENSOR_PIN, INPUT_DISABLE);
+	//pinMode(CURRENT_SENSOR_PIN, INPUT_DISABLE);
 	pinMode(PRESSURE_SENSOR_PIN, INPUT_DISABLE);
 
 	//set up communication
@@ -430,11 +430,6 @@ void autosteerLoop()
 
 	//This runs continuously, outside of the timed loop, keeps checking for new udpData, turn sense
 	//delay(1);
-
-  //--CAN--Start--
-  //VBus_Receive();
-  //ISO_Receive();
-  K_Receive();
 
 	// Speed pulse
 	if (gpsSpeedUpdateTimer < 1000)
@@ -773,10 +768,4 @@ void EncoderFunc()
 		pulseCount++;
 		encEnable = false;
 	}
-}
-
-//---Receive K_Bus message
-void K_Receive()
-{
-
 }
