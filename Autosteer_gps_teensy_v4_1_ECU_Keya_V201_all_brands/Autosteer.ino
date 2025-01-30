@@ -112,6 +112,10 @@ bool engageCAN = false;          //Variable for Engage from CAN
 bool workCAN = false;
 long unsigned int lastIdActive = 0;
 uint8_t KBUSRearHitch = 250;    //Variable for hitch height from KBUS (0-250 *0.4 = 0-100%) - CaseIH tractor bus
+uint32_t myTime;
+uint32_t lastpush;
+uint32_t Time;
+uint32_t relayTime;
 
 //speed sent as *10
 float gpsSpeed = 0;

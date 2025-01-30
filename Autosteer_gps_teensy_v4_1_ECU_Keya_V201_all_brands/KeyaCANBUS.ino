@@ -28,7 +28,7 @@ void CAN_Setup() {
   else K_Bus.setBaudRate(250000);
   K_Bus.enableFIFO();
   K_Bus.setFIFOFilter(REJECT_ALL);
-  switch (Brand)
+    switch (Brand)
     {
       case 0:
           K_Bus.setFIFOFilter(0, 0x18EF1CD2, EXT);  //Claas Engage Message
@@ -42,6 +42,7 @@ void CAN_Setup() {
       case 2:
           K_Bus.setFIFOFilter(0, 0x14FF7706, EXT);  //CaseIH Engage Message
           K_Bus.setFIFOFilter(1, 0x18FE4523, EXT);  //CaseIH Rear Hitch Infomation
+          K_Bus.setFIFOFilter(2, 0x18FF1A03, EXT);  //CaseIH Engage Message
         break;
       case 3:
           K_Bus.setFIFOFilter(0, 0x613, STD);  //Fendt Engage
@@ -55,7 +56,7 @@ void CAN_Setup() {
       default:
         Serial.println("No brand selected");
         break;
-    } 
+    }
   delay(1000);
   if (debugKeya) Serial.println("Initialised Keya CANBUS");
 }
@@ -254,14 +255,21 @@ void KeyaBus_Receive()
 
 void eng() 
 {
-                if (lastIdActive == 0)
-                  {
-                    engageCAN = true;
-                    lastIdActive = 1;
-                  }
-                else
-                  {
-                    engageCAN = false;
-                    lastIdActive = 0;
-                  }
+                myTime = millis();
+                if(myTime - lastpush > 1500) 
+                      {
+                          if (lastIdActive == 0)
+                            {
+                              Time = millis();
+                              engageCAN = true;
+                              lastIdActive = 1;
+                              relayTime = ((millis() + 1000));
+                              lastpush = Time;
+                            }
+                          else
+                            {
+                              engageCAN = false;
+                              lastIdActive = 0;
+                            }
+                      }
 }
