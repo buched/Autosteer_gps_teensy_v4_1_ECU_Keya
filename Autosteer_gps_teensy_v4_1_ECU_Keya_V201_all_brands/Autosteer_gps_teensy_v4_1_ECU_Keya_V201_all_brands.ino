@@ -1,11 +1,7 @@
 #define VERSION 1.01
 //Modified by Desmartins Daniel 31/08/2024
 // Single antenna, IMU code for AgOpenGPS
-//
-// connection plan:
-// Teensy Serial 7 RX (28) to F9P Position receiver TX1 (Position data)
-// Teensy Serial 7 TX (29) to F9P Position receiver RX1 (RTCM data for RTK)
-//
+
 // Configuration of receiver
 // Position F9P
 // CFG-RATE-MEAS - 100 ms -> 10 Hz
@@ -16,15 +12,23 @@
 // lansalot's attempt at Keya integration
 // (he apologizes in advance)
 
+//  0 = Claas (1E/30 Navagation Controller, 13/19 Steering Controller) - See Claas Notes on Service Tool Page
+//  1 = Valtra, Massey Fergerson (Standard Danfoss ISO 1C/28 Navagation Controller, 13/19 Steering Controller)
+//  2 = CaseIH, New Holland (AA/170 Navagation Controller, 08/08 Steering Controller)
+//  3 = Fendt (2C/44 Navagation Controller, F0/240 Steering Controller)
+//  4 = JCB (AB/171 Navagation Controller, 13/19 Steering Controller)
+//  5 = FendtOne - Same as Fendt but 500kbs K-Bus.
+uint8_t Brand = 2;  
+
 /************************* User Settings *************************/
 // Serial Ports
 #define SerialAOG Serial                //AgIO USB conection
-#define SerialRTK Serial8               //RTK radio
-#define SerialGPS Serial3               //Main postion receiver (GGA) (Serial2 must be used here with T4.0 / Basic Panda boards - Should auto swap)
+//#define SerialGPS Serial3               //Main postion receiver (GGA) (Serial2 must be used here with T4.0 / Basic Panda boards - Should auto swap
+HardwareSerial* SerialGPS = &Serial3;   //Main postion receiver (GGA)
 
 const int32_t baudAOG = 115200; 
 const int32_t baudGPS = 460800;
-const int32_t baudRTK = 9600;     // most are using Xbee radios with default of 115200
+//const int32_t baudRTK = 9600;     // most are using Xbee radios with default of 115200
 
 int8_t KeyaCurrentSensorReading = 0;
 
@@ -40,14 +44,6 @@ const bool invertRoll= true;  //Used for IMU with dual antenna
 #define REPORT_INTERVAL 20    //BNO report time, we want to keep reading it quick & offen. Its not timmed to anything just give constant data.
 uint32_t READ_BNO_TIME = 0;   //Used stop BNO data pile up (This version is without resetting BNO everytime)
 
-//Status LED's
-//#define GGAReceivedLED 13         //Teensy onboard LED
-//#define Power_on_LED 5            //Red
-//#define Ethernet_Active_LED 6     //Green
-//#define GPSRED_LED 9              //Red (Flashing = NO IMU or Dual, ON = GPS fix with IMU)
-//#define GPSGREEN_LED 10           //Green (Flashing = Dual bad, ON = Dual good)
-//#define AUTOSTEER_STANDBY_LED 11  //Red
-//#define AUTOSTEER_ACTIVE_LED 12   //Green
 uint32_t gpsReadyTime = 0;        //Used for GGA timeout
 
 /*****************************************************************/
@@ -89,10 +85,14 @@ byte velocityPWM_Pin = 36;      // Velocity (MPH speed) PWM pin
 #include <Wire.h>
 #include "BNO08x_AOG.h"
 
+//running average
+//roll moyenne flottante
+//#include "RunningAverage.h"
+//RunningAverage myRA(7);
+//int samples = 0;
+//float avg = 0;
+
 #include <FlexCAN_T4.h>
-// CRX2/CTX2 on Teensy are CAN2 on board
-// CRX3/CTX3 on Teensy are CAN1 on board
-// Seems to work for CAN2, not sure why it didn't for CAN1
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_256> K_Bus;    //Tractor / Control Bus
 FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_256> Keya_Bus;
 
@@ -144,14 +144,11 @@ void setup()
   Serial.println(VERSION);
   Serial.println("Start setup");
 
-  SerialGPS.begin(baudGPS);
-  SerialGPS.addMemoryForRead(GPSrxbuffer, serial_buffer_size);
-  SerialGPS.addMemoryForWrite(GPStxbuffer, serial_buffer_size);
+  SerialGPS->begin(baudGPS);
+  SerialGPS->addMemoryForRead(GPSrxbuffer, serial_buffer_size);
+  SerialGPS->addMemoryForWrite(GPStxbuffer, serial_buffer_size);
 
-  delay(10);
-  SerialRTK.begin(baudRTK);
-  //SerialRTK->addMemoryForRead(RTKrxbuffer, serial_buffer_size);
-
+  delay(10);  
   Serial.println("SerialAOG, SerialRTK, SerialGPS initialized");
 
   Serial.println("\r\nStarting AutoSteer...");
@@ -224,25 +221,25 @@ void loop()
     KeyaBus_Receive();
 
     // Read incoming nmea from GPS
-    if (SerialGPS.available())
+    if (SerialGPS->available())
     {
-            parser << SerialGPS.read();
+            parser << SerialGPS->read();
     }
 
     udpNtrip();
 
-    // Check for RTK Radio
-    if (SerialRTK.available())
-    {
-        SerialGPS.write(SerialRTK.read());
-    }
+//    // Check for RTK Radio
+//    if (SerialRTK.available())
+//    {
+//        SerialGPS.write(SerialRTK.read());
+//    }
 
     //GGA timeout, turn off GPS LED's etc
-    if((systick_millis_count - gpsReadyTime) > 10000) //GGA age over 10sec
-    {
-      //digitalWrite(GPSRED_LED, LOW);
-      //digitalWrite(GPSGREEN_LED, LOW);
-    }
+//    if((systick_millis_count - gpsReadyTime) > 10000) //GGA age over 10sec
+//    {
+//      digitalWrite(GPSRED_LED, LOW);
+//      digitalWrite(GPSGREEN_LED, LOW);
+//    }
 
     //Read BNO
     if((systick_millis_count - READ_BNO_TIME) > REPORT_INTERVAL && useBNO08x)
@@ -254,15 +251,15 @@ void loop()
     if (Autosteer_running) autosteerLoop();
     else ReceiveUdp();
     
-  if (Ethernet.linkStatus() == LinkOFF) 
-  {
+  //if (Ethernet.linkStatus() == LinkOFF) 
+  //{
     //digitalWrite(Power_on_LED, 1);
     //digitalWrite(Ethernet_Active_LED, 0);
-  }
-  if (Ethernet.linkStatus() == LinkON) 
-  {
+  //}
+  //if (Ethernet.linkStatus() == LinkON) 
+  //{
     //digitalWrite(Power_on_LED, 0);
     //digitalWrite(Ethernet_Active_LED, 1);
-  }
+  //}
 }//End Loop
 //**************************************************************************
