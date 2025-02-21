@@ -25,7 +25,7 @@ uint8_t Brand = 2;
 #define SerialAOG Serial                //AgIO USB conection
 //#define SerialGPS Serial3               //Main postion receiver (GGA) (Serial2 must be used here with T4.0 / Basic Panda boards - Should auto swap
 HardwareSerial* SerialGPS = &Serial3;   //Main postion receiver (GGA)
-HardwareSerial* SerialIMU = &Serial5;   //IMU BNO-085
+HardwareSerial* SerialIMU = &Serial7;   //IMU BNO-085
 
 const int32_t baudAOG = 115200; 
 const int32_t baudGPS = 460800;
