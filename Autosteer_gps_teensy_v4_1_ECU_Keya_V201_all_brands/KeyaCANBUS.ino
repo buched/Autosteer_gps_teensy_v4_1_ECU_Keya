@@ -1,6 +1,9 @@
 #define lowByte(w) ((uint8_t)((w) & 0xFF))
 #define highByte(w) ((uint8_t)((w) >> 8))
 
+float decimal_input;
+float unit_input;
+
 uint8_t KeyaSteerPGN[] = { 0x23, 0x00, 0x20, 0x01, 0,0,0,0 }; // last 4 bytes change ofc
 uint8_t KeyaHeartbeat[] = { 0, 0, 0, 0, 0, 0, 0, 0, };
 
@@ -21,6 +24,8 @@ void keyaSend(uint8_t data[]) {
 }
 
 void CAN_Setup() {
+  Imu_Bus.begin();
+  Imu_Bus.setBaudRate(250000);
   Keya_Bus.begin();
   Keya_Bus.setBaudRate(250000);
   K_Bus.begin();
@@ -166,7 +171,15 @@ void KeyaBus_Receive()
               }
           }
       }
-      
+
+CAN_message_t msgimu;
+if (Imu_Bus.read(msgimu)) 
+   {
+    if (msgimu.len == 8 && msgimu.buf[0] == 0x55 && msgimu.buf[1] == 0x53) {
+      decodeFrameCAN(msgimu.buf);
+    }
+   }
+          
   CAN_message_t KBusReceiveData;
   if (K_Bus.read(KBusReceiveData))
     {
@@ -275,4 +288,56 @@ void eng()
                               lastIdActive = 0;
                             }
                       }
+}
+
+// Décodage de la trame : [0x55 | 0x53 | RollL | RollH | PitchL | PitchH | YawL | YawH]
+void decodeFrameCAN(uint8_t *buf) {
+      int16_t roll_raw;
+      int16_t pitch_raw;
+      float yaw_raw;
+      
+  // Extraction valeurs 16 bits (Little-endian)
+  roll_raw  = (buf[3] << 8) | buf[2];
+  pitch_raw = (buf[5] << 8) | buf[4];
+  yaw_raw   = (buf[7] << 8) | buf[6];
+
+  // Conversion en degrés
+  roll  = roll_raw  / 32768.0 * 180.0;
+  pitch = pitch_raw / 32768.0 * 180.0;
+  yaw = yaw_raw   / 32768 * 180;
+
+  roll  = roll * 10;
+  pitch = pitch * 10;
+  yaw = yaw * 10;
+  
+  if(steerConfig.InvertWAS)
+    {
+      roll *= -1;
+    }
+    
+//  // Échange Roll et Pitch selon la variable swapRollPitch
+  if (steerConfig.IsUseY_Axis) {
+    float temp = roll;
+    roll = pitch;
+    pitch = temp;
+  }
+
+    // Normalisation correcte du Yaw à 0-360°
+  //yaw = fmod((yaw + 360), 360);
+  // Normalisation correcte du Yaw à 0-360°
+  if (yaw < 0) yaw = 360.0 + yaw;
+  // Normalisation du Yaw à 0-360°
+  //if (yaw < 0) yaw += 360.0;
+//        if (yaw < 0 && yaw >= -180) //Scale BNO085 yaw from [-180°;180°] to [0;360°]
+//        {
+//          yaw = yaw + 360;
+//        }  
+//  // Affichage clair des résultats
+//  Serial.print("Roll: ");
+//  Serial.print(roll, 3);
+//  Serial.print("°, Pitch: ");
+//  Serial.print(pitch, 3);
+//  Serial.print("°, Yaw: ");
+//  Serial.print(yaw, 3);
+//  Serial.println("°");
 }

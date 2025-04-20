@@ -60,120 +60,29 @@ void GGA_Handler() //Rec'd GGA
     // time of last DGPS update
     parser.getArg(12, ageDGPS);
 
-    if (blink)
-    {
+    //if (blink)
+    //{
         //digitalWrite(GGAReceivedLED, HIGH);
-    }
-    else
-    {
+    //}
+    //else
+    //{
         //digitalWrite(GGAReceivedLED, LOW);
-    }
+    //}
 
-    blink = !blink;
+    //blink = !blink;
     GGA_Available = true;
 
-    if (useBNO08x)
-    {
        imuHandler();          //Get IMU data ready
        BuildNmea();           //Build & send data GPS data to AgIO (Both Dual & Single)
 
-        //digitalWrite(GPSRED_LED, HIGH);    //Turn red GPS LED ON, we have GGA and must have a IMU     
-        //digitalWrite(GPSGREEN_LED, LOW);   //Make sure the Green LED is OFF     
-
-    }
-    else if (!useBNO08x) 
-    {
-        //digitalWrite(GPSRED_LED, blink);   //Flash red GPS LED, we have GGA but no IMU or dual
-        //digitalWrite(GPSGREEN_LED, LOW);   //Make sure the Green LED is OFF
-        itoa(65535, imuHeading, 10);       //65535 is max value to stop AgOpen using IMU in Panda
-        BuildNmea();
-    }
     
     gpsReadyTime = systick_millis_count;    //Used for GGA timeout (LED's ETC) 
-}
-
-void readBNO()
-{
-          if (bno08x.dataAvailable() == true)
-        {
-            float dqx, dqy, dqz, dqw, dacr;
-            uint8_t dac;
-
-            //get quaternion
-            bno08x.getQuat(dqx, dqy, dqz, dqw, dacr, dac);
-/*            
-            while (bno08x.dataAvailable() == true)
-            {
-                //get quaternion
-                bno08x.getQuat(dqx, dqy, dqz, dqw, dacr, dac);
-                //Serial.println("Whiling");
-                //Serial.print(dqx, 4);
-                //Serial.print(F(","));
-                //Serial.print(dqy, 4);
-                //Serial.print(F(","));
-                //Serial.print(dqz, 4);
-                //Serial.print(F(","));
-                //Serial.println(dqw, 4);
-            }
-            //Serial.println("End of while");
-*/            
-            float norm = sqrt(dqw * dqw + dqx * dqx + dqy * dqy + dqz * dqz);
-            dqw = dqw / norm;
-            dqx = dqx / norm;
-            dqy = dqy / norm;
-            dqz = dqz / norm;
-
-            float ysqr = dqy * dqy;
-
-            // yaw (z-axis rotation)
-            float t3 = +2.0 * (dqw * dqz + dqx * dqy);
-            float t4 = +1.0 - 2.0 * (ysqr + dqz * dqz);
-            yaw = atan2(t3, t4);
-
-            // Convert yaw to degrees x10
-            yaw = (int16_t)((yaw * -RAD_TO_DEG_X_10));
-            if (yaw < 0) yaw += 3600;
-
-            // pitch (y-axis rotation)
-            float t2 = +2.0 * (dqw * dqy - dqz * dqx);
-            t2 = t2 > 1.0 ? 1.0 : t2;
-            t2 = t2 < -1.0 ? -1.0 : t2;
-//            pitch = asin(t2) * RAD_TO_DEG_X_10;
-
-            // roll (x-axis rotation)
-            float t0 = +2.0 * (dqw * dqx + dqy * dqz);
-            float t1 = +1.0 - 2.0 * (dqx * dqx + ysqr);
-//            roll = atan2(t0, t1) * RAD_TO_DEG_X_10;
-
-            if(steerConfig.IsUseY_Axis)
-            {
-              roll = asin(t2) * RAD_TO_DEG_X_10;
-              //myRA.addValue(roll);
-              //running average
-              //avg = myRA.getAverage();
-              pitch = atan2(t0, t1) * RAD_TO_DEG_X_10;
-            }
-            else
-            {
-              pitch = asin(t2) * RAD_TO_DEG_X_10;
-              roll = atan2(t0, t1) * RAD_TO_DEG_X_10;
-              //running average
-              //myRA.addValue(roll);
-              //avg = myRA.getAverage();
-            }
-
-            if(invertRoll)
-            {
-              roll *= -1;
-            }
-        }
 }
 
 void imuHandler()
 {
     int16_t temp = 0;
-        if (useBNO08x)
-        {
+
             //BNO is reading in its own timer    
             // Fill rest of Panda Sentence - Heading
             temp = yaw;
@@ -191,7 +100,7 @@ void imuHandler()
 
             // YawRate - 0 for now
             itoa(0, imuYawRate, 10);
-        }
+        
 }
 
 void BuildNmea(void)

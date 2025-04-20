@@ -21,7 +21,7 @@
 /////////////////////////////////////////////
 
 // if not in eeprom, overwrite
-#define EEP_Ident 2402
+#define EEP_Ident 2403
 
 //   ***********  Motor drive connections  **************888
 //Connect ground only for cytron, Connect Ground and +5v for IBT2
@@ -181,6 +181,11 @@ struct Configm {
 
 };  Configm aogConfig;   //4 bytes
 
+//struct IMU {
+//  uint8_t CanBauds = 2;              //1 = 125k, 2 = 250k, 3 = 500k, 4 = 1000k
+//  uint8_t UseImuCan = 0;
+////stockage pour fonctions futures
+//}; IMU canimu;
 
 void steerConfigInit()
 {
@@ -232,6 +237,7 @@ void autosteerSetup()
 		EEPROM.put(40, steerConfig);
 		EEPROM.put(60, networkAddress);
     EEPROM.get(70, aogConfig);
+    //EEPROM.put(120, canimu);
 	}
 	else
 	{
@@ -239,6 +245,7 @@ void autosteerSetup()
 		EEPROM.get(40, steerConfig);
 		EEPROM.get(60, networkAddress);
     EEPROM.get(70, aogConfig);
+    //EEPROM.put(120, canimu);
 	}
 
 	steerSettingsInit();
@@ -675,10 +682,8 @@ void ReceiveUdp()
 
 					SendUdp(helloFromAutoSteer, sizeof(helloFromAutoSteer), Eth_ipDestination, portDestination);
 				}
-				if (useBNO08x)
-				{
+
 					SendUdp(helloFromIMU, sizeof(helloFromIMU), Eth_ipDestination, portDestination);
-				}
 			}
 
 			else if (autoSteerUdpData[3] == 201)
