@@ -165,7 +165,6 @@ void BuildNmea(void)
     CalculateChecksum();
 
     strcat(nmea, "\r\n");
-
     if (Ethernet_running)   //If ethernet running send the GPS there
     {
         int len = strlen(nmea);
