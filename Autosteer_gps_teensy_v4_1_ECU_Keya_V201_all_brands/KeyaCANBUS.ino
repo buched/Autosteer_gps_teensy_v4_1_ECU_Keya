@@ -209,15 +209,13 @@ void KeyaBus_Receive()
                   eng();
                 }
             }
-           if (aogConfig.isRelayActiveHigh == 1)
-                {
-                  if (KBusReceiveData.id == 0x18FE4523)
+           
+            if (KBusReceiveData.id == 0x18FE4523)
                     {
                       KBUSRearHitch = (KBusReceiveData.buf[0]);
                       if (KBUSRearHitch < aogConfig.user1) workCAN = 1;
                       else workCAN = 0;
-                    }   
-                }
+                    } 
         }
       if (Brand == 3)
         {
@@ -276,3 +274,4 @@ void eng()
                             }
                       }
 }
+
