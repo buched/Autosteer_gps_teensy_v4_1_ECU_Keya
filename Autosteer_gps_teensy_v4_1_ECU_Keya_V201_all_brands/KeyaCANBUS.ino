@@ -9,8 +9,6 @@ uint8_t keyaCurrentResponse[] = { 0x60, 0x12, 0x21, 0x01 };
 
 uint64_t KeyaPGN = 0x06000001;
 
-const bool debugKeya = true;
-
 void keyaSend(uint8_t data[]) {
   CAN_message_t KeyaBusSendData;
   KeyaBusSendData.id = KeyaPGN;
@@ -28,37 +26,36 @@ void CAN_Setup() {
   else K_Bus.setBaudRate(250000);
   K_Bus.enableFIFO();
   K_Bus.setFIFOFilter(REJECT_ALL);
-    switch (Brand)
-    {
-      case 0:
+  if (Brand== 0)
+        {
           K_Bus.setFIFOFilter(0, 0x18EF1CD2, EXT);  //Claas Engage Message
           K_Bus.setFIFOFilter(1, 0x1CFFE6D2, EXT);  //Claas Work Message (CEBIS Screen MR Models)
-          break;
-      case 1:
+        }
+      if (Brand== 1)
+        {
           K_Bus.setFIFOFilter(0, 0x18EF1C32, EXT);  //Valtra Engage Message
           K_Bus.setFIFOFilter(1, 0x18EF1CFC, EXT);  //Mccormick Engage Message
           K_Bus.setFIFOFilter(2, 0x18EF1C00, EXT);  //MF Engage Message
-        break;
-      case 2:
+        }
+      if (Brand== 2)
+        {
           K_Bus.setFIFOFilter(0, 0x14FF7706, EXT);  //CaseIH Engage Message
           K_Bus.setFIFOFilter(1, 0x18FE4523, EXT);  //CaseIH Rear Hitch Infomation
           K_Bus.setFIFOFilter(2, 0x18FF1A03, EXT);  //CaseIH Engage Message
-        break;
-      case 3:
+        }
+      if (Brand== 3)
+        {
           K_Bus.setFIFOFilter(0, 0x613, STD);  //Fendt Engage
-        break;
-      case 4:
+        }
+      if (Brand== 4)
+        {
           K_Bus.setFIFOFilter(0, 0x18EFAB27, EXT);  //JCB engage message
-        break;
-      case 5:
+        }
+      if (Brand== 5)
+        {
           K_Bus.setFIFOFilter(0, 0xCFFD899, EXT);  //FendtOne Engage
-        break;
-      default:
-        Serial.println("No brand selected");
-        break;
-    }
+        }
   delay(1000);
-  if (debugKeya) Serial.println("Initialised Keya CANBUS");
 }
 
 bool isPatternMatch(const CAN_message_t& message, const uint8_t* pattern, size_t patternSize) {
@@ -111,7 +108,6 @@ void enableKeyaSteer() {
   KeyaBusSendData.buf[6] = 0;
   KeyaBusSendData.buf[7] = 0;
   Keya_Bus.write(KeyaBusSendData);
-  if (debugKeya) Serial.println("Enabled Keya motor");
 }
 
 void SteerKeya(int steerSpeed) {
@@ -119,8 +115,6 @@ void SteerKeya(int steerSpeed) {
   if (pwmDrive == 0) {
     disableKeyaSteer();
   }
-  if (debugKeya) Serial.println("told to steer, with " + String(steerSpeed) + " so....");
-  if (debugKeya) Serial.println("I converted that to speed " + String(actualSpeed));
 
   CAN_message_t KeyaBusSendData;
   KeyaBusSendData.id = KeyaPGN;
@@ -135,14 +129,12 @@ void SteerKeya(int steerSpeed) {
     KeyaBusSendData.buf[5] = lowByte(actualSpeed);
     KeyaBusSendData.buf[6] = 0xff;
     KeyaBusSendData.buf[7] = 0xff;
-    if (debugKeya) Serial.println("pwmDrive < zero - clockwise - steerSpeed " + String(steerSpeed));
   }
   else {
     KeyaBusSendData.buf[4] = highByte(actualSpeed);
     KeyaBusSendData.buf[5] = lowByte(actualSpeed);
     KeyaBusSendData.buf[6] = 0x00;
     KeyaBusSendData.buf[7] = 0x00;
-    if (debugKeya) Serial.println("pwmDrive > zero - anticlock-clockwise - steerSpeed " + String(steerSpeed));
   }
   Keya_Bus.write(KeyaBusSendData);
   enableKeyaSteer();
@@ -213,7 +205,7 @@ void KeyaBus_Receive()
             if (KBusReceiveData.id == 0x18FE4523)
                     {
                       KBUSRearHitch = (KBusReceiveData.buf[0]);
-                      if (KBUSRearHitch < aogConfig.user1) workCAN = 1;
+                      if (KBUSRearHitch < rearheight) workCAN = 1;
                       else workCAN = 0;
                     } 
         }
@@ -274,4 +266,3 @@ void eng()
                             }
                       }
 }
-
