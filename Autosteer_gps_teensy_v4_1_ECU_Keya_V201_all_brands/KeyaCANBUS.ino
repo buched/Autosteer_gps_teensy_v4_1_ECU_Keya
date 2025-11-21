@@ -205,7 +205,7 @@ void KeyaBus_Receive()
             if (KBusReceiveData.id == 0x18FE4523)
                     {
                       KBUSRearHitch = (KBusReceiveData.buf[0]);
-                      if (KBUSRearHitch < rearheight) workCAN = 1;
+                      if (KBUSRearHitch < aogConfig.user1) workCAN = 1;
                       else workCAN = 0;
                     } 
         }
@@ -266,3 +266,4 @@ void eng()
                             }
                       }
 }
+
