@@ -162,7 +162,7 @@ void setup()
   uint8_t error;
 
   ImuWire.begin();
-  
+  delay(2000);  
   for (int16_t i = 0; i < nrBNO08xAdresses; i++)
   {
       bno08xAddress = bno08xAddresses[i];
